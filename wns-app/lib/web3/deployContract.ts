@@ -76,7 +76,7 @@ export const deployWNSContract = async (
   rpcUrl: string
 ): Promise<string> => {
   try {
-    const provider = new ethers.providers.JsonRpcProvider(rpcUrl, 1)
+    const provider = new ethers.JsonRpcProvider(rpcUrl, 1)
     const wallet = new ethers.Wallet(privateKey, provider)
 
     // In a real scenario, you would compile and deploy here
