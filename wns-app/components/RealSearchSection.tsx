@@ -3,8 +3,6 @@
 import { useState } from 'react'
 import { checkDomainAvailability } from '@/lib/web3/contract'
 import { DEFAULT_WNS_CONTRACT_ADDRESS } from '@/lib/web3/deployContract'
-import { recordDomainSearch } from '@/app/actions/domains'
-import RealRegistrationFlow from './RealRegistrationFlow'
 
 interface SearchStatus {
   state: 'idle' | 'searching' | 'available' | 'taken' | 'error'

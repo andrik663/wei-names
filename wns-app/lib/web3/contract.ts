@@ -1,6 +1,6 @@
 import { ethers } from 'ethers'
 
-// WNS Contract ABI - basic ERC721 + registry functions
+// WNS Contract ABI
 export const WNS_CONTRACT_ABI = [
   'function register(string memory domainName) payable',
   'function checkAvailability(string memory domainName) view returns (bool)',
@@ -11,39 +11,36 @@ export const WNS_CONTRACT_ABI = [
   'event DomainTransferred(address indexed from, address indexed to, string domainName)',
 ]
 
-// Default public RPC endpoints for Ethereum Mainnet
+// Public RPC endpoints for Ethereum Mainnet
 const RPC_ENDPOINTS = [
   'https://eth.public.lodestar.io',
-  'https://eth.lavanet.xyz:443/lavanet/63949ebb62000800001a9630d707efad',
   'https://rpc.ankr.com/eth',
+  'https://ethereum.publicnode.com',
 ]
 
-let provider: ethers.JsonRpcProvider | null = null
-let currentRpcIndex = 0
+let _provider: ethers.JsonRpcProvider | null = null
+let _rpcIndex = 0
 
-export const getProvider = (): ethers.JsonRpcProvider => {
-  if (!provider) {
-    const rpcUrl = RPC_ENDPOINTS[currentRpcIndex]
-    provider = new ethers.JsonRpcProvider(rpcUrl, 1) // 1 = Ethereum mainnet
+export function getProvider(): ethers.JsonRpcProvider {
+  if (!_provider) {
+    _provider = new ethers.JsonRpcProvider(RPC_ENDPOINTS[_rpcIndex], 1)
   }
-  return provider
+  return _provider
 }
 
-export const switchRpcProvider = (): void => {
-  currentRpcIndex = (currentRpcIndex + 1) % RPC_ENDPOINTS.length
-  provider = null
-  console.log(`[WNS] Switched to RPC endpoint ${currentRpcIndex}`)
+export function resetProvider(): void {
+  _rpcIndex = (_rpcIndex + 1) % RPC_ENDPOINTS.length
+  _provider = null
 }
 
-export const getContractInstance = (contractAddress: string): ethers.Contract => {
-  const provider = getProvider()
-  return new ethers.Contract(contractAddress, WNS_CONTRACT_ABI, provider)
+export function getContractInstance(contractAddress: string): ethers.Contract {
+  return new ethers.Contract(contractAddress, WNS_CONTRACT_ABI, getProvider())
 }
 
-export const getContractWithSigner = (
+export function getContractWithSigner(
   contractAddress: string,
   signer: ethers.Signer
-): ethers.Contract => {
+): ethers.Contract {
   return new ethers.Contract(contractAddress, WNS_CONTRACT_ABI, signer)
 }
 
@@ -53,79 +50,65 @@ export interface DomainCheckResult {
   error?: string
 }
 
-export const checkDomainAvailability = async (
+// Domains considered "taken" in demo/test mode (contract address starts with 0xb…)
+const DEMO_TAKEN = new Set([
+  'ethereum', 'vitalik', 'uniswap', 'aave', 'curve', 'lido', 'wei',
+])
+
+export async function checkDomainAvailability(
   contractAddress: string,
   domainName: string
-): Promise<DomainCheckResult> => {
-  // Demo mode: simulate results for testing
-  const isTestAddress = contractAddress.startsWith('0xb') || contractAddress.startsWith('0xa')
-  if (isTestAddress) {
-    // Simulate some domains being taken
-    const takenDomains = ['ethereum', 'vitalik', 'uniswap', 'aave', 'curve', 'lido']
-    const isTaken = takenDomains.includes(domainName.toLowerCase())
-    
+): Promise<DomainCheckResult> {
+  const name = domainName.toLowerCase()
+
+  // Demo mode when no real contract is deployed yet
+  const isDemo =
+    !contractAddress ||
+    contractAddress === '0x' + 'b'.repeat(40) ||
+    contractAddress === '0x' + 'a'.repeat(40)
+
+  if (isDemo) {
+    const taken = DEMO_TAKEN.has(name)
     return {
-      available: !isTaken,
-      owner: isTaken ? '0x' + '1'.repeat(40) : undefined,
+      available: !taken,
+      owner: taken ? '0x' + '1'.repeat(40) : undefined,
     }
   }
 
+  // Real contract call
   try {
     const contract = getContractInstance(contractAddress)
-    const available = await contract.checkAvailability(domainName)
-
+    const available: boolean = await contract.checkAvailability(name)
     if (!available) {
-      const owner = await contract.getDomainOwner(domainName)
+      const owner: string = await contract.getDomainOwner(name)
       return { available: false, owner }
     }
-
     return { available: true }
-  } catch (error) {
-    console.error('[WNS] Error checking domain availability:', error)
-    // Return demo result on error
-    return {
-      available: true,
-      error: undefined,
-    }
+  } catch (err) {
+    console.error('[WNS] checkDomainAvailability error:', err)
+    // Graceful fallback — treat as available so the UI is not broken
+    return { available: true }
   }
 }
 
-export const getDomainOwner = async (
+export async function getDomainOwner(
   contractAddress: string,
   domainName: string
-): Promise<string | null> => {
+): Promise<string | null> {
   try {
     const contract = getContractInstance(contractAddress)
-    const owner = await contract.getDomainOwner(domainName)
+    const owner: string = await contract.getDomainOwner(domainName)
     return owner && owner !== ethers.ZeroAddress ? owner : null
-  } catch (error) {
-    console.error('[WNS] Error getting domain owner:', error)
+  } catch {
     return null
   }
 }
 
-export const estimateRegistrationGas = async (
-  contractAddress: string,
-  domainName: string,
-  fromAddress: string
-): Promise<ethers.BigNumber | null> => {
-  try {
-    const contract = getContractInstance(contractAddress)
-    const gasEstimate = await contract.estimateGas.register(domainName, {
-      from: fromAddress,
-    })
-    return gasEstimate
-  } catch (error) {
-    console.error('[WNS] Error estimating gas:', error)
-    return null
-  }
-}
-
-export const formatAddress = (address: string): string => {
-  if (!address) return ''
+export function formatAddress(address: string): string {
+  if (!address || address.length < 10) return address ?? ''
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
-export const isValidEthereumAddress = (address: string): boolean => {
+export function isValidEthereumAddress(address: string): boolean {
   return ethers.isAddress(address)
 }

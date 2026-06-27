@@ -5,7 +5,7 @@ import {
   getUserDomains,
   getTransactionHistory,
 } from '@/app/actions/domains'
-import Navbar from '@/components/Navbar'
+import RealNavbar from '@/components/RealNavbar'
 import DomainCard from '@/components/DomainCard'
 import TransactionHistory from '@/components/TransactionHistory'
 
@@ -28,7 +28,7 @@ export default async function MyDomainsPage() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Navbar />
+      <RealNavbar />
       <main className="flex-1 container mx-auto px-6 py-16 max-w-4xl">
         {/* Header */}
         <div className="mb-12">
